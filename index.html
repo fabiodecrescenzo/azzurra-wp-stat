@@ -115,6 +115,7 @@ body.ro #rob{display:inline-block}
 </div>
 <div id="g"></div>
 <div id="ov"><div class="box">
+  <div class="row"><button class="btn" id="sb1" style="background:#0b3d91">Breve (WhatsApp)</button><button class="btn" id="sb2" style="background:#90a4ae">Analisi completa</button></div>
   <textarea id="txt" readonly></textarea>
   <div class="row">
     <button class="btn" id="copy">Copia testo</button>
@@ -386,7 +387,7 @@ function showSeason(){var ms=DB.matches.filter(function(m){return m.log.length})
   var h='<h2>Giocatori ('+ms.length+(ms.length==1?' partita':' partite')+')</h2><table id="stab"><tr><th>Giocatore</th><th>Partite</th><th>Gol</th><th>di cui sup.</th><th>Assist</th><th>di cui sup.</th><th>Espulsioni</th></tr>'+
     rows.map(function(t){return '<tr><td>'+esc(t.n)+'</td><td>'+t.p+'</td><td><b>'+t.g+'</b></td><td>'+t.gu+'</td><td><b>'+t.a+'</b></td><td>'+t.au+'</td><td>'+t.e+'</td></tr>'}).join('')+'</table>';
   var gf=0,gs=0,uf=0,us=0,ef=0,es=0;ms.forEach(function(m){var s=score(m);gf+=s[0];gs+=s[1];uf+=sum(m.gu);us+=m.ogu;ef+=sum(m.e);es+=sum(m.x)});
-  h+='<h2>Squadra</h2><table id="stab"><tr><th></th><th>Gol fatti</th><th>Gol subiti</th><th>Gol in sup. fatti</th><th>Gol in sup. subiti</th><th>Espulsioni</th><th>Espulsioni avv.</th></tr><tr><td>Totale</td><td>'+gf+'</td><td>'+gs+'</td><td>'+uf+'</td><td>'+us+'</td><td>'+ef+'</td><td>'+es+'</td></tr></table>';
+  h+='<h2>Squadra</h2><table id="stab"><tr><th></th><th>Gol fatti</th><th>Gol subiti</th><th>Superiorità realizzate</th><th>Inferiorità difese</th><th>Espulsioni</th><th>Espulsioni avv.</th></tr><tr><td>Totale</td><td>'+gf+'</td><td>'+gs+'</td><td>'+uf+' su '+es+' ('+pct(uf,es)+')</td><td>'+Math.max(0,ef-us)+' su '+ef+' ('+pct(Math.max(0,ef-us),ef)+')</td><td>'+ef+'</td><td>'+es+'</td></tr><tr><td>Media a partita</td><td>'+(ms.length?(gf/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(gs/ms.length).toFixed(1):'–')+'</td><td></td><td></td><td>'+(ms.length?(ef/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(es/ms.length).toFixed(1):'–')+'</td></tr></table>';
   h+='<h2>Partite</h2><table id="stab"><tr><th>Partita</th><th>Data</th><th>Risultato</th><th>Stato</th></tr>'+ms.map(function(m){return '<tr><td>'+esc(title(m))+'</td><td>'+esc(fdate(m))+'</td><td><b>'+res(m)+'</b></td><td>'+(m.done?'Conclusa':'In corso')+'</td></tr>'}).join('')+'</table>';
   if(!ms.length)h='<div id="empty">Nessuna statistica ancora registrata.</div>';
   document.getElementById('sbody').innerHTML=h;document.getElementById('season').style.display='flex'}
@@ -407,21 +408,59 @@ document.getElementById('hnew').addEventListener('click',function(){var opp=prom
 function updSave(){document.getElementById('stsave').textContent=(storageOk()?'Salvataggio automatico attivo ✓':'⚠ Salvataggio non disponibile: usa "Salva copia"')+(DB.gh?' · Pubblicazione attiva ☁':'')}updSave();
 
 // ---------- riepilogo ----------
-function nm(i){return (i+1)+(S.names[i]?' '+S.names[i]:'')}
-function perScore(){var r=[];for(var p=1;p<=4;p++){var a=0,b=0;S.log.forEach(function(e){if(e[2]!=p)return;if(e[0]=='g'||e[0]=='gu')a++;if(e[0]=='og'||e[0]=='ogu')b++});r.push(S.home?a+'-'+b:b+'-'+a)}return r.join(', ')}
-function summary(){var s=score(S),t=[],O=S.opp||'Avversario';
-  if(S.gio||S.date)t.push((S.gio?S.gio+' · ':'')+fdate(S)+(S.place?' · '+S.place:''));
-  t.push(S.home?'Azzurra '+s[0]+' - '+s[1]+' '+O:O+' '+s[1]+' - '+s[0]+' Azzurra');
-  t.push('Parziali: '+perScore());
-  t.push('Gol in superiorità: Azzurra '+sum(S.gu)+', '+O+' '+S.ogu);
-  t.push('Espulsioni: Azzurra '+sum(S.e)+', '+O+' '+sum(S.x));
-  t.push('');t.push('Marcatori');
-  for(var i=0;i<N;i++){var gg=S.g[i]+S.gu[i];if(gg)t.push(nm(i)+': '+gg+(S.gu[i]?' ('+S.gu[i]+' in sup.)':''))}
-  t.push('');t.push('Assist');
-  for(i=0;i<N;i++){var aa=S.a[i]+S.au[i];if(aa)t.push(nm(i)+': '+aa+(S.au[i]?' ('+S.au[i]+' in sup.)':''))}
-  var ex=[];for(i=0;i<N;i++)if(S.e[i])ex.push(nm(i)+': '+S.e[i]+(S.e[i]>=3?' (fuori)':''));
-  if(ex.length){t.push('');t.push('Espulsioni Azzurra');t=t.concat(ex)}
+// ---------- riepilogo da match analyst ----------
+function clean(n){return String(n||'').replace(/\s*\((VC|C)\)\s*$/,'')}
+function pct(a,b){return b?Math.round(a*100/b)+'%':'–'}
+function analyze(m){var s=score(m),A=s[0],B=s[1],P=[],run={t:null,n:0,best:{t:null,n:0,p:0}},d=0,maxL=0,maxD=0,ties=0,chg=0,lead=0,firstLead=null;
+  for(var p=1;p<=4;p++){var a=0,b=0,ea=0,eb=0;m.log.forEach(function(e){if(e[2]!=p)return;if(e[0]=='g'||e[0]=='gu')a++;if(e[0]=='og'||e[0]=='ogu')b++;if(e[0]=='e')ea++;if(e[0]=='x')eb++});P.push({a:a,b:b,ea:ea,eb:eb})}
+  m.log.forEach(function(e){var us=(e[0]=='g'||e[0]=='gu'),them=(e[0]=='og'||e[0]=='ogu');if(!us&&!them)return;var t=us?'A':'B';d+=us?1:-1;
+    if(run.t==t)run.n++;else{run.t=t;run.n=1;run.p=e[2]}if(run.n>run.best.n)run.best={t:t,n:run.n,p:run.p,e:e[2]};
+    maxL=Math.max(maxL,d);maxD=Math.min(maxD,d);var nl=d>0?1:d<0?-1:0;if(nl==0)ties++;if(nl!=0&&lead!=0&&nl!=lead)chg++;if(nl!=0){if(firstLead===null)firstLead=nl;lead=nl}});
+  return {A:A,B:B,P:P,maxL:maxL,maxD:-maxD,ties:ties,chg:chg,run:run.best,
+    gu:sum(m.gu),ga:sum(m.g),snA:sum(m.x),ogu:m.ogu,oga:m.og,snB:sum(m.e),ast:sum(m.a)+sum(m.au)}}
+function hdr(m){var O=m.opp||'Avversario',s=score(m);return m.home?'Azzurra '+s[0]+' - '+s[1]+' '+O:O+' '+s[1]+' - '+s[0]+' Azzurra'}
+function parz(m,P){return P.map(function(x){return m.home?x.a+'-'+x.b:x.b+'-'+x.a}).join(' / ')}
+function players(m){var r=[];for(var i=0;i<N;i++)r.push({i:i,n:clean(m.names[i])||('Calotta '+(i+1)),g:m.g[i]+m.gu[i],gu:m.gu[i],a:m.a[i]+m.au[i],au:m.au[i],e:m.e[i]});return r}
+function summaryShort(m){var k=analyze(m),pl=players(m),t=[];
+  t.push(hdr(m)+(m.gio?' ('+m.gio+')':''));
+  t.push('Parziali: '+parz(m,k.P));
+  t.push('Superiorità: '+k.gu+' su '+k.snA+(k.snA?' ('+pct(k.gu,k.snA)+')':'')+' · Inferiorità difese: '+(k.snB-k.ogu<0?0:k.snB-k.ogu)+' su '+k.snB);
+  var sc=pl.filter(function(p){return p.g}).sort(function(a,b){return b.g-a.g||a.i-b.i}).map(function(p){return p.n+(p.g>1?' '+p.g:'')});
+  if(sc.length)t.push('Marcatori: '+sc.join(', '));
+  var as=pl.filter(function(p){return p.a}).sort(function(a,b){return b.a-a.a||a.i-b.i}).map(function(p){return p.n+(p.a>1?' '+p.a:'')});
+  if(as.length)t.push('Assist: '+as.join(', '));
   return t.join('\n')}
+function summaryFull(m){var k=analyze(m),pl=players(m),t=[],O=m.opp||'avversari',diff=k.A-k.B;
+  t.push('AZZURRA U16'+(m.gio?' – '+m.gio:''));
+  t.push(fdate(m)+(m.place?' · '+m.place:''));
+  t.push(hdr(m)+(m.done?(diff>0?' · Vittoria (+'+diff+')':diff<0?' · Sconfitta ('+diff+')':' · Pareggio'):' · in corso'));
+  t.push('');t.push('Parziali: '+parz(m,k.P));
+  var w=0,l=0,x=0;k.P.forEach(function(q){if(q.a>q.b)w++;else if(q.a<q.b)l++;else x++});
+  t.push('Tempi vinti '+w+', pareggiati '+x+', persi '+l);
+  if(k.A+k.B){t.push('');t.push('ANDAMENTO');
+    t.push('Vantaggio massimo Azzurra: '+(k.maxL?'+'+k.maxL:'mai in vantaggio')+(k.maxD?' · Svantaggio massimo: -'+k.maxD:''));
+    if(k.run.n>=2)t.push('Miglior parziale '+(k.run.t=='A'?'Azzurra':O)+': '+k.run.n+'-0'+(k.run.p==k.run.e?' nel '+k.run.p+'° tempo':' tra '+k.run.p+'° e '+k.run.e+'° tempo'));
+    t.push('Situazioni di parità: '+k.ties+' · Cambi di vantaggio: '+k.chg)}
+  t.push('');t.push('ATTACCO');
+  t.push('Gol '+k.A+': '+k.ga+" d'azione, "+k.gu+' in superiorità'+(k.A?' ('+pct(k.gu,k.A)+')':''));
+  t.push('Superiorità numeriche: '+k.snA+' · realizzate '+k.gu+(k.snA?' ('+pct(k.gu,k.snA)+')':''));
+  t.push('Gol con assist: '+Math.min(k.ast,k.A)+' su '+k.A+(k.A?' ('+pct(Math.min(k.ast,k.A),k.A)+')':''));
+  t.push('Marcatori diversi: '+pl.filter(function(p){return p.g}).length);
+  t.push('');t.push('DIFESA');
+  t.push('Gol subiti '+k.B+': '+k.oga+" d'azione, "+k.ogu+' in inferiorità');
+  t.push('Inferiorità numeriche: '+k.snB+' · difese senza subire gol '+Math.max(0,k.snB-k.ogu)+(k.snB?' ('+pct(Math.max(0,k.snB-k.ogu),k.snB)+')':''));
+  var sc=pl.filter(function(p){return p.g||p.a}).sort(function(a,b){return (b.g+b.a)-(a.g+a.a)||b.g-a.g||a.i-b.i});
+  if(sc.length){t.push('');t.push('CONTRIBUTO OFFENSIVO (gol + assist)');
+    sc.forEach(function(p){var x=[];if(p.g)x.push(p.g+' gol'+(p.gu?' ('+p.gu+' in sup.)':''));if(p.a)x.push(p.a+' assist'+(p.au?' ('+p.au+' in sup.)':''));t.push((p.i+1)+' '+p.n+': '+x.join(', '))})}
+  var ex=pl.filter(function(p){return p.e}).sort(function(a,b){return b.e-a.e||a.i-b.i});
+  t.push('');t.push('ESPULSIONI');
+  t.push('Azzurra '+k.snB+' · '+O+' '+k.snA);
+  t.push('Per tempo (Azzurra-'+O+'): '+k.P.map(function(q){return q.ea+'-'+q.eb}).join(' / '));
+  ex.forEach(function(p){t.push((p.i+1)+' '+p.n+': '+p.e+(p.e>=3?' – fuori per limite falli':p.e==2?' – a rischio':''))});
+  t.push('');t.push('Superiorità e inferiorità sono calcolate dalle espulsioni registrate.');
+  return t.join('\n')}
+function summary(){return smode=='b'?summaryShort(S):summaryFull(S)}
+var smode='b';
 function csv(){var r=['Calotta;Nome;Gol;Gol UP;Assist;Assist UP;Espulsioni;Espulsioni avv'];
   for(var i=0;i<N;i++)r.push([i+1,'"'+(S.names[i]||'').replace(/"/g,"'")+'"',S.g[i],S.gu[i],S.a[i],S.au[i],S.e[i],S.x[i]].join(';'));
   r.push('');r.push('Avversario;'+(S.opp||'')+';Gol avv;'+S.og+';Gol avv UP;'+S.ogu);
@@ -429,7 +468,9 @@ function csv(){var r=['Calotta;Nome;Gol;Gol UP;Assist;Assist UP;Espulsioni;Espul
   S.log.forEach(function(e){r.push([LBL[e[0]],e[1]>=0?e[1]+1:'',e[2],new Date(e[3]).toLocaleTimeString('it-IT')].join(';'))});
   return '\ufeff'+r.join('\r\n')}
 var ov=document.getElementById('ov'),txt=document.getElementById('txt');
-document.getElementById('sum').addEventListener('click',function(){txt.value=summary();document.getElementById('end').style.display=(S.done||(S.remote&&!DB.gh))?'none':'';document.getElementById('send').style.display=DB.gh?'':'none';ov.style.display='flex'});
+function setMode(md){smode=md;txt.value=summary();document.getElementById('sb1').style.background=md=='b'?'#0b3d91':'#90a4ae';document.getElementById('sb2').style.background=md=='f'?'#0b3d91':'#90a4ae'}
+document.getElementById('sb1').addEventListener('click',function(){setMode('b')});document.getElementById('sb2').addEventListener('click',function(){setMode('f')});
+document.getElementById('sum').addEventListener('click',function(){setMode(smode);document.getElementById('end').style.display=(S.done||(S.remote&&!DB.gh))?'none':'';document.getElementById('send').style.display=DB.gh?'':'none';ov.style.display='flex'});
 document.getElementById('close').addEventListener('click',function(){ov.style.display='none'});
 document.getElementById('copy').addEventListener('click',function(){
   function fb2(){txt.removeAttribute('readonly');txt.select();try{document.execCommand('copy');toast('Copiato')}catch(e){toast('Seleziona e copia a mano')}txt.setAttribute('readonly','')}
