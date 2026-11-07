@@ -320,7 +320,7 @@ function fb(f,i,sign){beep(f,sign);
   if(f!='x'){if(lastRow)lastRow.classList.remove('last');lastRow=document.getElementById('n'+i);lastRow.classList.add('last')}}
 function add(f,i){if(S.done)return;
   if(f=='og'||f=='ogu')S[f]++;else{S[f][i]++;cell(f,i)}
-  S.log.push([f,i,S.per,Date.now()]);if(S.e[i]==3&&f=='e')toast('Calotta '+(i+1)+' – 3 espulsioni');
+  S.log.push([f,i,S.per,Date.now()]);if(S.e[i]==3&&f=='e')toast('Calotta '+(i+1)+' – 3 falli personali: fuori');
   totals();save();fb(f,i,1)}
 function remove(f,i){if(S.done)return;
   for(var k=S.log.length-1;k>=0;k--){var e=S.log[k];if(e[0]==f&&e[1]==i){S.log.splice(k,1);break}}
@@ -448,6 +448,7 @@ function summaryFull(m){var k=analyze(m),pl=players(m),t=[],O=m.opp||'avversari'
   t.push('Marcatori diversi: '+pl.filter(function(p){return p.g}).length);
   t.push('');t.push('DIFESA');
   t.push('Gol subiti '+k.B+': '+k.oga+" d'azione, "+k.ogu+' in inferiorità'+(k.B?' ('+pct(k.ogu,k.B)+' dei gol subiti)':''));
+  t.push('Bilancio in superiorità: '+(k.gu-k.ogu>0?'+':'')+(k.gu-k.ogu)+" · bilancio d'azione: "+(k.ga-k.oga>0?'+':'')+(k.ga-k.oga));
   var sc=pl.filter(function(p){return p.g||p.a}).sort(function(a,b){return (b.g+b.a)-(a.g+a.a)||b.g-a.g||a.i-b.i});
   if(sc.length){t.push('');t.push('CONTRIBUTO OFFENSIVO (gol + assist)');
     sc.forEach(function(p){var x=[];if(p.g)x.push(p.g+' gol'+(p.gu?' ('+p.gu+' in sup.)':''));if(p.a)x.push(p.a+' assist'+(p.au?' ('+p.au+' in sup.)':''));t.push((p.i+1)+' '+p.n+': '+x.join(', '))})}
