@@ -92,6 +92,7 @@ body{display:flex;flex-direction:column;touch-action:manipulation}
 body.ro #g .c{pointer-events:none}
 body.ro .og,body.ro .per,body.ro #undo{display:none}
 body.ro #g .nm input,body.ro #opp{pointer-events:none}
+#stab{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;font-size:18px}#stab th{background:#0b3d91;color:#fff;padding:10px 8px;font-size:15px}#stab td{padding:9px 8px;text-align:center;border-bottom:1px solid #e3e8ef}#stab td:first-child{text-align:left;font-weight:700}#stab tr:nth-child(even) td{background:#f3f6fa}#sbody h2{font-size:18px;color:#0b3d91;margin:18px 0 8px}
 #rob{display:none;background:#2e7d32!important}
 body.ro #rob{display:inline-block}
 #home2{background:#455a64!important;font-size:22px!important}
@@ -119,21 +120,25 @@ body.ro #rob{display:inline-block}
     <button class="btn" id="copy">Copia testo</button>
     <button class="btn" id="csv">Scarica CSV</button>
     <button class="btn" id="bak" style="background:#2e7d32">Salva copia</button>
-    <button class="btn" id="send" style="background:#6a1b9a">☁ Invia statistiche</button>
+    <button class="btn" id="send" style="background:#6a1b9a">☁ Pubblica</button>
     <button class="btn" id="end" style="background:#c62828">Termina partita</button>
     <span style="flex:1"></span>
     <button class="btn" id="close" style="background:#555">Chiudi</button>
   </div>
 </div></div>
 <div id="home">
-  <header><img src="icon-192.png" alt=""><h1>Azzurra WP Stat<br><small id="stsave"></small></h1></header>
+  <header><img src="icon-192.png" alt=""><h1>Azzurra WP Stat<br><small id="stsave"></small></h1><button id="hset" style="background:none;border:0;color:#fff;font-size:28px;padding:6px">⚙</button></header>
   <div id="list"></div>
   <footer>
     <button class="btn" id="hnew">+ Nuova partita</button>
     <button class="btn" id="himp" style="background:#2e7d32">Carica distinta o copia (file)</button>
-    <button class="btn" id="hsheet" style="background:#6a1b9a;display:none">📊 Apri statistiche</button>
+    <button class="btn" id="hstat" style="background:#6a1b9a">📊 Statistiche stagione</button>
     <button class="btn" id="hxls" style="background:#0f7b3f">📤 Excel su OneDrive</button>
   </footer>
+</div>
+<div id="season" style="position:fixed;inset:0;background:#eef2f8;z-index:9;display:none;flex-direction:column">
+  <header style="background:#0b3d91;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px"><h1 style="font-size:22px;flex:1">📊 Statistiche stagione</h1><button class="btn" id="sclose" style="background:#455a64">Chiudi</button></header>
+  <div id="sbody" style="flex:1;overflow:auto;padding:14px 18px"></div>
 </div>
 <div id="msg"></div>
 <input type="file" id="imp" accept=".json,application/json" style="display:none">
@@ -180,30 +185,50 @@ function syncDistinte(ask){if(!window.crypto||!crypto.subtle)return;
   fetch('distinte.enc?t='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(o){
     if(!DB.pin){if(!ask)return;var p=prompt('Codice squadra (si inserisce una sola volta):');if(!p)return;DB.pin=p.trim()}
     if(DB.encv===o.data&&!ask)return;
-    return decrypt(o,DB.pin).then(function(d){var r=merge(d.matches||[]);if(d.cfg)DB.cfg=d.cfg;DB.encv=o.data;persist();renderHome();sendAll();
+    return decrypt(o,DB.pin).then(function(d){var r=merge(d.matches||[]);DB.encv=o.data;persist();renderHome();fetchStats();publish(false);
       if(r[0]||ask)toast('Distinte aggiornate: '+r[0]+' nuove, '+r[1]+' controllate')},
       function(){DB.pin='';persist();toast('Codice squadra errato');if(ask)setTimeout(function(){syncDistinte(true)},800)})
   }).catch(function(){})}
 
-// ---------- invio statistiche al Foglio Google (solo quando c'è connessione) ----------
-function pending(m){return m.log.length&&(m.upd||0)>(m.sent||0)}
+// ---------- statistiche condivise: pubblicazione cifrata su GitHub (solo con internet) ----------
+function pending(m){return m.log.length&&!m.remote&&(m.upd||0)>(m.sent||0)}
 function rowsOf(m){var s=score(m),O=m.opp||'',P=[],Gi=[],E=[],ps=[];
   for(var p=1;p<=4;p++){var a=0,b=0;m.log.forEach(function(e){if(e[2]!=p)return;if(e[0]=='g'||e[0]=='gu')a++;if(e[0]=='og'||e[0]=='ogu')b++});ps.push(m.home?a+'-'+b:b+'-'+a)}
-  P.push([m.id,m.gio||'',m.date||'',m.time||'',m.home?'Casa':'Trasferta',O,m.place||'',s[0],s[1],m.home?'Azzurra '+s[0]+'-'+s[1]+' '+O:O+' '+s[1]+'-'+s[0]+' Azzurra',ps.join(' / '),sum(m.gu),m.ogu,sum(m.e),sum(m.x),m.done?'Conclusa':'In corso',new Date().toLocaleString('it-IT')]);
+  P.push([m.id,m.gio||'',m.date||'',m.time||'',m.home?'Casa':'Trasferta',O,m.place||'',s[0],s[1],m.home?'Azzurra '+s[0]+'-'+s[1]+' '+O:O+' '+s[1]+'-'+s[0]+' Azzurra',ps.join(' / '),sum(m.gu),m.ogu,sum(m.e),sum(m.x),m.done?'Conclusa':'In corso',new Date(m.upd||Date.now()).toLocaleString('it-IT')]);
   for(var i=0;i<N;i++)if(m.names[i]||m.g[i]||m.gu[i]||m.a[i]||m.au[i]||m.e[i])Gi.push([m.id,m.date||'',O,i+1,m.names[i]||('Calotta '+(i+1)),m.g[i]+m.gu[i],m.gu[i],m.a[i]+m.au[i],m.au[i],m.e[i]]);
   m.log.forEach(function(e){var c=e[1]>=0?e[1]+1:'';E.push([m.id,m.date||'',O,e[2]+'T',new Date(e[3]).toLocaleTimeString('it-IT'),LBL[e[0]],c,(e[0]=='x'||e[0]=='og'||e[0]=='ogu')?'':(m.names[e[1]]||'')])});
   return {Partite:P,Giocatori:Gi,Eventi:E}}
-var sending=false;
-function sendAll(manual){if(!DB.cfg||!DB.cfg.url){if(manual)toast('Invio non ancora configurato');return}
-  if(!navigator.onLine){if(manual)toast('Sei offline: invierò appena torna la connessione');return}
-  if(sending)return;var q=DB.matches.filter(pending);if(!q.length){if(manual)toast('Statistiche già inviate ✓');return}
-  sending=true;var m=q[0],stamp=m.upd;
-  fetch(DB.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:DB.cfg.token,id:m.id,rows:rowsOf(m)})})
-   .then(function(r){return r.json()}).then(function(j){sending=false;if(!j.ok)throw 0;m.sent=stamp;persist();if(home.style.display!='none')renderHome();
-     toast('Statistiche inviate ✓ '+title(m));sendAll(false)})
-   .catch(function(){sending=false;if(manual)toast('Invio non riuscito, riprovo più tardi')})}
-window.addEventListener('online',function(){setTimeout(function(){sendAll(false)},1500)});
-setInterval(function(){sendAll(false)},120000);
+function u8b64(u){var s='',C=0x8000;for(var i=0;i<u.length;i+=C)s+=String.fromCharCode.apply(null,u.subarray(i,i+C));return btoa(s)}
+function encrypt(obj,pin){var c=crypto.subtle,salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),IT=310000;
+  return c.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveKey'])
+  .then(function(k){return c.deriveKey({name:'PBKDF2',salt:salt,iterations:IT,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt'])})
+  .then(function(key){return c.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(JSON.stringify(obj)))})
+  .then(function(ct){return {v:1,it:IT,salt:u8b64(salt),iv:u8b64(iv),data:u8b64(new Uint8Array(ct))}})}
+var API='https://api.github.com/repos/fabiodecrescenzo/azzurra-wp-stat/contents/stats.enc',busy=false;
+function publish(manual){
+  if(!DB.gh){if(manual)toast('Pubblicazione non attiva su questo dispositivo');return}
+  if(!DB.pin){if(manual)toast('Inserisci prima il codice squadra');return}
+  if(!navigator.onLine){if(manual)toast('Sei offline: pubblico appena torna la connessione');return}
+  if(busy)return;var q=DB.matches.filter(pending);if(!q.length){if(manual)toast('Statistiche già pubblicate ✓');return}
+  busy=true;var stamp={};DB.matches.forEach(function(m){stamp[m.id]=m.upd});
+  var pay={matches:DB.matches.filter(function(m){return m.log.length}),at:Date.now()},H={Authorization:'Bearer '+DB.gh,Accept:'application/vnd.github+json'};
+  encrypt(pay,DB.pin).then(function(enc){
+    return fetch(API+'?t='+Date.now(),{headers:H,cache:'no-store'}).then(function(r){return r.status==404?{}:r.json()}).then(function(cur){
+      var body={message:'Statistiche aggiornate '+new Date().toLocaleString('it-IT'),content:btoa(JSON.stringify(enc))};if(cur.sha)body.sha=cur.sha;
+      return fetch(API,{method:'PUT',headers:H,body:JSON.stringify(body)})})
+  }).then(function(r){busy=false;if(!r.ok)throw r.status;
+    DB.matches.forEach(function(m){if(m.log.length&&!m.remote)m.sent=stamp[m.id]});persist();if(home.style.display!='none')renderHome();toast('Statistiche pubblicate ✓')})
+  .catch(function(e){busy=false;if(e==401||e==403){toast('Codice di pubblicazione non valido');}else if(manual)toast('Pubblicazione non riuscita, riprovo più tardi')})}
+// chi consulta (allenatore, dirigenti): scarica le statistiche pubblicate
+function fetchStats(){if(!DB.pin||!navigator.onLine||!window.crypto||!crypto.subtle)return;
+  fetch('stats.enc?t='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(o){
+    if(DB.statv===o.data)return;return decrypt(o,DB.pin).then(function(d){var n=0;
+      (d.matches||[]).forEach(function(rm){var l=byId(rm.id);
+        if(!l){var b=blank(rm);b.remote=true;b.sent=rm.upd;DB.matches.push(b);n++;return}
+        if((rm.upd||0)>(l.upd||0)){F.concat(['x','og','ogu','log','per','done','names','upd','opp','gio','date','time','home','place']).forEach(function(k){if(rm[k]!==undefined)l[k]=rm[k]});l.remote=!DB.gh;l.sent=rm.upd;n++}});
+      DB.statv=o.data;persist();if(home.style.display!='none')renderHome();if(n)toast('Statistiche aggiornate')})}).catch(function(){})}
+window.addEventListener('online',function(){setTimeout(function(){publish(false);fetchStats()},1500)});
+setInterval(function(){publish(false)},120000);
 
 // ---------- Excel (.xlsx) generato sul tablet, senza librerie ----------
 var CRC=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
@@ -339,29 +364,43 @@ function fdate(m){try{return new Date(m.date+'T12:00').toLocaleDateString('it-IT
 function score(m){return [sum(m.g)+sum(m.gu),m.og+m.ogu]}
 function title(m){return m.home?'AZZURRA – '+(m.opp||'?'):(m.opp||'?')+' – AZZURRA'}
 function res(m){var s=score(m);return m.home?s[0]+' – '+s[1]:s[1]+' – '+s[0]}
-function renderHome(){document.getElementById('hsheet').style.display=DB.cfg&&DB.cfg.view?'':'none';var ms=DB.matches.slice().sort(function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)});
+function renderHome(){document.getElementById('hnew').style.display=DB.gh||!DB.matches.some(function(m){return m.remote})?'':'none';var ms=DB.matches.slice().sort(function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)});
   if(!ms.length){listEl.innerHTML='<div id="empty">Nessuna partita.<br>Apri il link della distinta oppure tocca "+ Nuova partita".</div>';return}
   listEl.innerHTML=ms.map(function(m){var cls=m.done?'done':(m.log.length?'run':''),st=m.done?'Conclusa<b>'+res(m)+'</b>':(m.log.length?'In corso · '+m.per+'T<b>'+res(m)+'</b>':'Da giocare');
     return '<div class="card '+cls+'" data-id="'+esc(m.id)+'"><div class="when"><b>'+esc(m.gio||'Partita')+'</b>'+esc(fdate(m))+(m.time?' · '+esc(m.time):'')+'</div>'+
-      '<div class="match">'+esc(title(m))+'<small>'+esc(m.place||'')+(m.log.length&&DB.cfg&&DB.cfg.url?(pending(m)?' · ☁ da inviare':' · ☁ inviata ✓'):'')+'</small></div><div class="st">'+st+'</div><button class="del" data-del="'+esc(m.id)+'">🗑</button></div>'}).join('')}
+      '<div class="match">'+esc(title(m))+'<small>'+esc(m.place||'')+(m.log.length&&DB.gh&&!m.remote?(pending(m)?' · ☁ da pubblicare':' · ☁ pubblicata ✓'):'')+'</small></div><div class="st">'+st+'</div><button class="del" data-del="'+esc(m.id)+'">🗑</button></div>'}).join('')}
 listEl.addEventListener('click',function(e){var del=e.target.closest('[data-del]');
   if(del){var m=byId(del.dataset.del);if(!confirm('Eliminare la partita "'+title(m)+'"?'+(m.log.length?' Prima ne scarico una copia.':'')))return;
     if(m.log.length)backup('eliminata',m);DB.matches=DB.matches.filter(function(x){return x!==m});persist();renderHome();return}
   var c=e.target.closest('.card');if(c)openMatch(c.dataset.id)});
-function openMatch(id){S=byId(id);if(!S)return;lastRow=null;[].forEach.call(document.querySelectorAll('#g .last'),function(x){x.classList.remove('last')});document.getElementById('last').textContent=S.done?'Partita conclusa · sola lettura':(S.gio?S.gio+' · ':'')+fdate(S);
-  document.body.classList.toggle('ro',!!S.done);all();home.style.display='none';goFS();
+function openMatch(id){S=byId(id);if(!S)return;lastRow=null;[].forEach.call(document.querySelectorAll('#g .last'),function(x){x.classList.remove('last')});document.getElementById('last').textContent=(S.done||(S.remote&&!DB.gh))?(S.done?'Partita conclusa':'Partita in corso')+' · sola lettura':(S.gio?S.gio+' · ':'')+fdate(S);
+  var ro=!!(S.done||(S.remote&&!DB.gh));document.body.classList.toggle('ro',ro);document.getElementById('rob').style.visibility=(S.remote&&!DB.gh)?'hidden':'';all();home.style.display='none';goFS();
   if(!S.done&&!S.log.length)toast((S.gio?S.gio+': ':'')+title(S)+' – pronta a registrare')}
-function showHome(){S=null;document.getElementById('ov').style.display='none';renderHome();home.style.display='flex';sendAll(false)}
+function showSeason(){var ms=DB.matches.filter(function(m){return m.log.length}).sort(function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)}),T={},o=[];
+  ms.forEach(function(m){for(var i=0;i<N;i++){var n=m.names[i];if(!n)continue;if(!T[n]){T[n]={n:n,p:0,g:0,gu:0,a:0,au:0,e:0};o.push(n)}var t=T[n];t.p++;t.g+=m.g[i]+m.gu[i];t.gu+=m.gu[i];t.a+=m.a[i]+m.au[i];t.au+=m.au[i];t.e+=m.e[i]}});
+  var rows=o.map(function(n){return T[n]}).sort(function(a,b){return b.g-a.g||b.a-a.a});
+  var h='<h2>Giocatori ('+ms.length+(ms.length==1?' partita':' partite')+')</h2><table id="stab"><tr><th>Giocatore</th><th>Partite</th><th>Gol</th><th>di cui sup.</th><th>Assist</th><th>di cui sup.</th><th>Espulsioni</th></tr>'+
+    rows.map(function(t){return '<tr><td>'+esc(t.n)+'</td><td>'+t.p+'</td><td><b>'+t.g+'</b></td><td>'+t.gu+'</td><td><b>'+t.a+'</b></td><td>'+t.au+'</td><td>'+t.e+'</td></tr>'}).join('')+'</table>';
+  var gf=0,gs=0,uf=0,us=0,ef=0,es=0;ms.forEach(function(m){var s=score(m);gf+=s[0];gs+=s[1];uf+=sum(m.gu);us+=m.ogu;ef+=sum(m.e);es+=sum(m.x)});
+  h+='<h2>Squadra</h2><table id="stab"><tr><th></th><th>Gol fatti</th><th>Gol subiti</th><th>Gol in sup. fatti</th><th>Gol in sup. subiti</th><th>Espulsioni</th><th>Espulsioni avv.</th></tr><tr><td>Totale</td><td>'+gf+'</td><td>'+gs+'</td><td>'+uf+'</td><td>'+us+'</td><td>'+ef+'</td><td>'+es+'</td></tr></table>';
+  h+='<h2>Partite</h2><table id="stab"><tr><th>Partita</th><th>Data</th><th>Risultato</th><th>Stato</th></tr>'+ms.map(function(m){return '<tr><td>'+esc(title(m))+'</td><td>'+esc(fdate(m))+'</td><td><b>'+res(m)+'</b></td><td>'+(m.done?'Conclusa':'In corso')+'</td></tr>'}).join('')+'</table>';
+  if(!ms.length)h='<div id="empty">Nessuna statistica ancora registrata.</div>';
+  document.getElementById('sbody').innerHTML=h;document.getElementById('season').style.display='flex'}
+document.getElementById('sclose').addEventListener('click',function(){document.getElementById('season').style.display='none'});
+function showHome(){S=null;document.getElementById('ov').style.display='none';renderHome();home.style.display='flex';publish(false)}
 document.getElementById('home2').addEventListener('click',showHome);
 document.getElementById('hxls').addEventListener('click',function(){if(!DB.matches.some(function(m){return m.log.length})){toast('Nessuna statistica ancora registrata');return}exportExcel()});
-document.getElementById('hsheet').addEventListener('click',function(){if(DB.cfg&&DB.cfg.view)window.open(DB.cfg.view,'_blank')});
+document.getElementById('hset').addEventListener('click',function(){
+  var c=prompt('IMPOSTAZIONI\n\nCodice di pubblicazione (solo per chi registra le partite).\nLascia vuoto per disattivare la pubblicazione su questo dispositivo.',DB.gh?'(attivo – scrivi un nuovo codice per cambiarlo)':'');
+  if(c===null)return;c=c.trim();if(c.indexOf('(attivo')==0)return;DB.gh=c||'';persist();renderHome();updSave();toast(c?'Pubblicazione attivata':'Pubblicazione disattivata');if(c)publish(true)});
+document.getElementById('hstat').addEventListener('click',showSeason);
 document.getElementById('rob').addEventListener('click',function(){if(!confirm('Riaprire la partita conclusa per modificarla?'))return;S.done=false;save();document.body.classList.remove('ro');document.getElementById('last').textContent='Partita riaperta'});
 document.getElementById('hnew').addEventListener('click',function(){var opp=prompt('Avversario:');if(opp===null)return;
   var dt=prompt('Data (aaaa-mm-gg):',new Date().toISOString().slice(0,10));if(dt===null)return;
   var casa=confirm('Azzurra gioca in casa?\nOK = in casa · Annulla = in trasferta');
   var last=DB.matches.slice().sort(function(a,b){return (b.date+b.time).localeCompare(a.date+a.time)})[0];
   var m=blank({opp:opp.trim(),date:dt.trim(),home:casa,names:last?last.names.slice():[]});DB.matches.push(m);persist();openMatch(m.id)});
-document.getElementById('stsave').textContent=storageOk()?'Salvataggio automatico attivo ✓':'⚠ Salvataggio non disponibile: usa "Salva copia"';
+function updSave(){document.getElementById('stsave').textContent=(storageOk()?'Salvataggio automatico attivo ✓':'⚠ Salvataggio non disponibile: usa "Salva copia"')+(DB.gh?' · Pubblicazione attiva ☁':'')}updSave();
 
 // ---------- riepilogo ----------
 function nm(i){return (i+1)+(S.names[i]?' '+S.names[i]:'')}
@@ -386,20 +425,20 @@ function csv(){var r=['Calotta;Nome;Gol;Gol UP;Assist;Assist UP;Espulsioni;Espul
   S.log.forEach(function(e){r.push([LBL[e[0]],e[1]>=0?e[1]+1:'',e[2],new Date(e[3]).toLocaleTimeString('it-IT')].join(';'))});
   return '\ufeff'+r.join('\r\n')}
 var ov=document.getElementById('ov'),txt=document.getElementById('txt');
-document.getElementById('sum').addEventListener('click',function(){txt.value=summary();document.getElementById('end').style.display=S.done?'none':'';ov.style.display='flex'});
+document.getElementById('sum').addEventListener('click',function(){txt.value=summary();document.getElementById('end').style.display=(S.done||(S.remote&&!DB.gh))?'none':'';document.getElementById('send').style.display=DB.gh?'':'none';ov.style.display='flex'});
 document.getElementById('close').addEventListener('click',function(){ov.style.display='none'});
 document.getElementById('copy').addEventListener('click',function(){
   function fb2(){txt.removeAttribute('readonly');txt.select();try{document.execCommand('copy');toast('Copiato')}catch(e){toast('Seleziona e copia a mano')}txt.setAttribute('readonly','')}
   try{navigator.clipboard.writeText(txt.value).then(function(){toast('Copiato')},fb2)}catch(e){fb2()}});
 document.getElementById('csv').addEventListener('click',function(){dl(fname()+'.csv',csv(),'text/csv')});
-document.getElementById('send').addEventListener('click',function(){sendAll(true)});
+document.getElementById('send').addEventListener('click',function(){publish(true)});
 document.getElementById('end').addEventListener('click',function(){if(!confirm('Terminare la partita? Resterà consultabile in sola lettura.'))return;
   S.done=true;save();backup('finale');showHome()});
 
 // Indietro: torna all'elenco, non chiude l'app
 try{history.pushState({g:1},'',location.href);window.addEventListener('popstate',function(){history.pushState({g:1},'',location.href);if(home.style.display=='none')showHome();else toast('Per uscire chiudi l\'app')})}catch(e){}
 showHome();
-syncDistinte(!DB.pin);
+syncDistinte(!DB.pin);fetchStats();
 window.addEventListener('online',function(){syncDistinte(false)});
 })();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
