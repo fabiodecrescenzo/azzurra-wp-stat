@@ -127,7 +127,7 @@ body.ro #rob{display:inline-block}
   </div>
 </div></div>
 <div id="home">
-  <header><img src="icon-192.png" alt=""><h1>Azzurra WP Stat<br><small id="stsave"></small></h1><button id="hset" style="background:none;border:0;color:#fff;font-size:28px;padding:6px">⚙</button></header>
+  <header><img src="icon-192.png" alt=""><h1>Azzurra WP Stat<br><small id="stsave"></small></h1><button id="hset" style="background:none;border:0;color:#fff;font-size:28px;padding:6px">⚙</button><button id="hexit" class="btn" style="background:#c62828;font-size:18px;padding:10px 16px">⏻ Esci</button></header>
   <div id="list"></div>
   <footer>
     <button class="btn" id="hnew">+ Nuova partita</button>
@@ -140,6 +140,10 @@ body.ro #rob{display:inline-block}
   <header style="background:#0b3d91;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px"><h1 style="font-size:22px;flex:1">📊 Statistiche stagione</h1><button class="btn" id="sclose" style="background:#455a64">Chiudi</button></header>
   <div id="sbody" style="flex:1;overflow:auto;padding:14px 18px"></div>
 </div>
+<div id="bye" style="position:fixed;inset:0;background:#0b3d91;color:#fff;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px">
+  <div style="font-size:64px">✓</div><div style="font-size:28px;font-weight:800">Dati salvati</div>
+  <div style="font-size:18px;opacity:.9;line-height:1.5">Puoi chiudere l'app:<br>premi <b>Indietro</b> oppure scorrila via dalle app recenti.</div>
+  <button class="btn" id="byeback" style="background:#ffd600;color:#000;font-size:18px;margin-top:10px">Torna all'app</button></div>
 <div id="msg"></div>
 <input type="file" id="imp" accept=".json,application/json" style="display:none">
 <script>
@@ -436,7 +440,19 @@ document.getElementById('end').addEventListener('click',function(){if(!confirm('
   S.done=true;save();backup('finale');showHome()});
 
 // Indietro: torna all'elenco, non chiude l'app
-try{history.pushState({g:1},'',location.href);window.addEventListener('popstate',function(){history.pushState({g:1},'',location.href);if(home.style.display=='none')showHome();else toast('Per uscire chiudi l\'app')})}catch(e){}
+var bye=document.getElementById('bye'),leaving=false;
+function saveNow(){if(S)S.upd=S.upd||Date.now();persist()}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState=='hidden')saveNow()});
+window.addEventListener('pagehide',saveNow);
+function exitApp(){saveNow();document.getElementById('ov').style.display='none';document.getElementById('season').style.display='none';bye.style.display='flex';leaving=true;
+  try{window.close()}catch(e){}}
+document.getElementById('hexit').addEventListener('click',exitApp);
+document.getElementById('byeback').addEventListener('click',function(){bye.style.display='none';leaving=false;try{history.pushState({g:1},'',location.href)}catch(e){}});
+try{history.pushState({g:1},'',location.href);window.addEventListener('popstate',function(){
+  if(leaving){saveNow();return}                                   // secondo Indietro: l'app si chiude
+  if(document.getElementById('season').style.display=='flex'){document.getElementById('season').style.display='none';history.pushState({g:1},'',location.href);return}
+  if(home.style.display=='none'){showHome();history.pushState({g:1},'',location.href);return}
+  exitApp()})}catch(e){}
 showHome();
 syncDistinte(!DB.pin);fetchStats();
 window.addEventListener('online',function(){syncDistinte(false)});
