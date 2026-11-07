@@ -167,6 +167,21 @@ try{var hm=location.hash.match(/d=([^&]+)/);if(hm){var r=merge(JSON.parse(decode
   history.replaceState(null,'',location.pathname);setTimeout(function(){toast('Distinte caricate: '+r[0]+' nuove, '+r[1]+' aggiornate')},300)}}catch(e){}
 persist();
 
+// ---------- distinte automatiche (file cifrato sul sito, codice squadra) ----------
+function b64(s){var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+function decrypt(o,pin){var c=crypto.subtle;return c.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveKey'])
+  .then(function(k){return c.deriveKey({name:'PBKDF2',salt:b64(o.salt),iterations:o.it,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['decrypt'])})
+  .then(function(key){return c.decrypt({name:'AES-GCM',iv:b64(o.iv)},key,b64(o.data))})
+  .then(function(buf){return JSON.parse(new TextDecoder().decode(buf))})}
+function syncDistinte(ask){if(!window.crypto||!crypto.subtle)return;
+  fetch('distinte.enc?t='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(o){
+    if(!DB.pin){if(!ask)return;var p=prompt('Codice squadra (si inserisce una sola volta):');if(!p)return;DB.pin=p.trim()}
+    if(DB.encv===o.data&&!ask)return;
+    return decrypt(o,DB.pin).then(function(d){var r=merge(d.matches||[]);DB.encv=o.data;persist();renderHome();
+      if(r[0]||ask)toast('Distinte aggiornate: '+r[0]+' nuove, '+r[1]+' controllate')},
+      function(){DB.pin='';persist();toast('Codice squadra errato');if(ask)setTimeout(function(){syncDistinte(true)},800)})
+  }).catch(function(){})}
+
 var S=null; // partita aperta
 function save(){if(!S)return;S.upd=Date.now();persist()}
 
@@ -315,6 +330,8 @@ document.getElementById('end').addEventListener('click',function(){if(!confirm('
 // Indietro: torna all'elenco, non chiude l'app
 try{history.pushState({g:1},'',location.href);window.addEventListener('popstate',function(){history.pushState({g:1},'',location.href);if(home.style.display=='none')showHome();else toast('Per uscire chiudi l\'app')})}catch(e){}
 showHome();
+syncDistinte(!DB.pin);
+window.addEventListener('online',function(){syncDistinte(false)});
 })();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
 </script>
