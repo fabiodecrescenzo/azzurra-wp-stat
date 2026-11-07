@@ -111,7 +111,10 @@ try{LS=JSON.parse(localStorage.getItem(KEY))}catch(e){canSave=false}
 try{var m=location.hash.match(/s=([^&]+)/);if(m)HS=JSON.parse(decodeURIComponent(m[1]))}catch(e){}
 function ok(o){return o&&o.g&&o.log}
 S=ok(LS)&&ok(HS)?((HS.upd||0)>(LS.upd||0)?HS:LS):(ok(LS)?LS:(ok(HS)?HS:null));
+// link distinta (nessuna azione): sostituisce solo una partita vuota, mai una partita in corso
+if(ok(LS)&&ok(HS)&&!HS.log.length&&!LS.log.length)S=HS;
 if(!S)S=fresh();
+var fromHash=(S===HS);
 if(!S.names.join(''))S.names=ROSTER.slice();if(!S.opp)S.opp=OPP0;
 function save(){S.upd=Date.now();var j=JSON.stringify(S);
   try{localStorage.setItem(KEY,j);if(localStorage.getItem(KEY)!==j)throw 0}catch(e){canSave=false}
@@ -144,6 +147,7 @@ function totals(){F.forEach(function(f){document.getElementById('t'+f).textConte
   var b=document.querySelectorAll('.per');for(var j=0;j<b.length;j++)b[j].classList.toggle('on',+b[j].dataset.p==S.per)}
 function all(){for(var i=0;i<N;i++){F.forEach(function(f){cell(f,i)});cell('x',i)}totals()}
 all();
+if(fromHash){save();toast('Distinta caricata')}
 
 var lastRow=null;
 var AC=null,TONE={g:[880,1320],gu:[880,1320],og:[440,330],ogu:[440,330],a:[660,990],au:[660,990],e:[300,0],x:[300,0]};
