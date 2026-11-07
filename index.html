@@ -321,6 +321,7 @@ function fb(f,i,sign){beep(f,sign);
    rw.forEach(function(x){x.classList.add('rowfl')});setTimeout(function(){rw.forEach(function(x){x.classList.remove('rowfl')})},250)}
   if(f!='x'){if(lastRow)lastRow.classList.remove('last');lastRow=document.getElementById('n'+i);lastRow.classList.add('last')}}
 function add(f,i){if(S.done)return;
+  if((f=='e'||f=='x')&&S[f][i]>=3){beep('e',-1);toast((f=='x'?'Avversario cal. ':'Calotta ')+(i+1)+': già 3 falli personali, è fuori');return}
   if(f=='og'||f=='ogu')S[f]++;else{S[f][i]++;cell(f,i)}
   S.log.push([f,i,S.per,Date.now()]);if(S.e[i]==3&&f=='e')toast('Calotta '+(i+1)+' – 3 falli personali: fuori');
   totals();save();fb(f,i,1)}
