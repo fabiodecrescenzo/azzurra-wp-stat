@@ -388,7 +388,7 @@ function showSeason(){var ms=DB.matches.filter(function(m){return m.log.length})
   var h='<h2>Giocatori ('+ms.length+(ms.length==1?' partita':' partite')+')</h2><table id="stab"><tr><th>Giocatore</th><th>Partite</th><th>Gol</th><th>di cui sup.</th><th>Assist</th><th>di cui sup.</th><th>Espulsioni</th></tr>'+
     rows.map(function(t){return '<tr><td>'+esc(t.n)+'</td><td>'+t.p+'</td><td><b>'+t.g+'</b></td><td>'+t.gu+'</td><td><b>'+t.a+'</b></td><td>'+t.au+'</td><td>'+t.e+'</td></tr>'}).join('')+'</table>';
   var gf=0,gs=0,uf=0,us=0,ef=0,es=0;ms.forEach(function(m){var s=score(m);gf+=s[0];gs+=s[1];uf+=sum(m.gu);us+=m.ogu;ef+=sum(m.e);es+=sum(m.x)});
-  h+='<h2>Squadra</h2><table id="stab"><tr><th></th><th>Gol fatti</th><th>Gol subiti</th><th>Superiorità realizzate</th><th>Inferiorità difese</th><th>Espulsioni</th><th>Espulsioni avv.</th></tr><tr><td>Totale</td><td>'+gf+'</td><td>'+gs+'</td><td>'+uf+' su '+es+' ('+pct(uf,es)+')</td><td>'+Math.max(0,ef-us)+' su '+ef+' ('+pct(Math.max(0,ef-us),ef)+')</td><td>'+ef+'</td><td>'+es+'</td></tr><tr><td>Media a partita</td><td>'+(ms.length?(gf/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(gs/ms.length).toFixed(1):'–')+'</td><td></td><td></td><td>'+(ms.length?(ef/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(es/ms.length).toFixed(1):'–')+'</td></tr></table>';
+  h+='<h2>Squadra</h2><table id="stab"><tr><th></th><th>Gol fatti</th><th>Gol subiti</th><th>Gol in sup. fatti</th><th>Gol in sup. subiti</th><th>Espulsioni</th><th>Espulsioni avv.</th></tr><tr><td>Totale</td><td>'+gf+'</td><td>'+gs+'</td><td>'+uf+'</td><td>'+us+'</td><td>'+ef+'</td><td>'+es+'</td></tr><tr><td>Media a partita</td><td>'+(ms.length?(gf/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(gs/ms.length).toFixed(1):'–')+'</td><td></td><td></td><td>'+(ms.length?(ef/ms.length).toFixed(1):'–')+'</td><td>'+(ms.length?(es/ms.length).toFixed(1):'–')+'</td></tr></table>';
   h+='<h2>Partite</h2><table id="stab"><tr><th>Partita</th><th>Data</th><th>Risultato</th><th>Stato</th></tr>'+ms.map(function(m){return '<tr><td>'+esc(title(m))+'</td><td>'+esc(fdate(m))+'</td><td><b>'+res(m)+'</b></td><td>'+(m.done?'Conclusa':'In corso')+'</td></tr>'}).join('')+'</table>';
   if(!ms.length)h='<div id="empty">Nessuna statistica ancora registrata.</div>';
   document.getElementById('sbody').innerHTML=h;document.getElementById('season').style.display='flex'}
@@ -425,7 +425,7 @@ function players(m){var r=[];for(var i=0;i<N;i++)r.push({i:i,n:clean(m.names[i])
 function summaryShort(m){var k=analyze(m),pl=players(m),t=[];
   t.push(hdr(m)+(m.gio?' ('+m.gio+')':''));
   t.push('Parziali: '+parz(m,k.P));
-  t.push('Superiorità: '+k.gu+' su '+k.snA+(k.snA?' ('+pct(k.gu,k.snA)+')':'')+' · Inferiorità difese: '+(k.snB-k.ogu<0?0:k.snB-k.ogu)+' su '+k.snB);
+  t.push('Gol in superiorità: Azzurra '+k.gu+' · '+(m.opp||'avversari')+' '+k.ogu);
   var sc=pl.filter(function(p){return p.g}).sort(function(a,b){return b.g-a.g||a.i-b.i}).map(function(p){return p.n+(p.g>1?' '+p.g:'')});
   if(sc.length)t.push('Marcatori: '+sc.join(', '));
   var as=pl.filter(function(p){return p.a}).sort(function(a,b){return b.a-a.a||a.i-b.i}).map(function(p){return p.n+(p.a>1?' '+p.a:'')});
@@ -443,23 +443,20 @@ function summaryFull(m){var k=analyze(m),pl=players(m),t=[],O=m.opp||'avversari'
     if(k.run.n>=2)t.push('Miglior parziale '+(k.run.t=='A'?'Azzurra':O)+': '+k.run.n+'-0'+(k.run.p==k.run.e?' nel '+k.run.p+'° tempo':' tra '+k.run.p+'° e '+k.run.e+'° tempo'));
     t.push('Situazioni di parità: '+k.ties+' · Cambi di vantaggio: '+k.chg)}
   t.push('');t.push('ATTACCO');
-  t.push('Gol '+k.A+': '+k.ga+" d'azione, "+k.gu+' in superiorità'+(k.A?' ('+pct(k.gu,k.A)+')':''));
-  t.push('Superiorità numeriche: '+k.snA+' · realizzate '+k.gu+(k.snA?' ('+pct(k.gu,k.snA)+')':''));
+  t.push('Gol '+k.A+': '+k.ga+" d'azione, "+k.gu+' in superiorità'+(k.A?' ('+pct(k.gu,k.A)+' dei gol)':''));
   t.push('Gol con assist: '+Math.min(k.ast,k.A)+' su '+k.A+(k.A?' ('+pct(Math.min(k.ast,k.A),k.A)+')':''));
   t.push('Marcatori diversi: '+pl.filter(function(p){return p.g}).length);
   t.push('');t.push('DIFESA');
-  t.push('Gol subiti '+k.B+': '+k.oga+" d'azione, "+k.ogu+' in inferiorità');
-  t.push('Inferiorità numeriche: '+k.snB+' · difese senza subire gol '+Math.max(0,k.snB-k.ogu)+(k.snB?' ('+pct(Math.max(0,k.snB-k.ogu),k.snB)+')':''));
+  t.push('Gol subiti '+k.B+': '+k.oga+" d'azione, "+k.ogu+' in inferiorità'+(k.B?' ('+pct(k.ogu,k.B)+' dei gol subiti)':''));
   var sc=pl.filter(function(p){return p.g||p.a}).sort(function(a,b){return (b.g+b.a)-(a.g+a.a)||b.g-a.g||a.i-b.i});
   if(sc.length){t.push('');t.push('CONTRIBUTO OFFENSIVO (gol + assist)');
     sc.forEach(function(p){var x=[];if(p.g)x.push(p.g+' gol'+(p.gu?' ('+p.gu+' in sup.)':''));if(p.a)x.push(p.a+' assist'+(p.au?' ('+p.au+' in sup.)':''));t.push((p.i+1)+' '+p.n+': '+x.join(', '))})}
   var ex=pl.filter(function(p){return p.e}).sort(function(a,b){return b.e-a.e||a.i-b.i});
-  t.push('');t.push('ESPULSIONI');
+  t.push('');t.push('ESPULSIONI (falli personali)');
   t.push('Azzurra '+k.snB+' · '+O+' '+k.snA);
   t.push('Per tempo (Azzurra-'+O+'): '+k.P.map(function(q){return q.ea+'-'+q.eb}).join(' / '));
   ex.forEach(function(p){t.push((p.i+1)+' '+p.n+': '+p.e+(p.e>=3?' – fuori per limite falli':p.e==2?' – a rischio':''))});
-  t.push('');t.push('Superiorità e inferiorità sono calcolate dalle espulsioni registrate.');
-  return t.join('\n')}
+    return t.join('\n')}
 function summary(){return smode=='b'?summaryShort(S):summaryFull(S)}
 var smode='b';
 function csv(){var r=['Calotta;Nome;Gol;Gol UP;Assist;Assist UP;Espulsioni;Espulsioni avv'];
