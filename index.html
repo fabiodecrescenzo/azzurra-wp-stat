@@ -132,6 +132,7 @@ body.ro #rob{display:inline-block}
     <button class="btn" id="hnew">+ Nuova partita</button>
     <button class="btn" id="himp" style="background:#2e7d32">Carica distinta o copia (file)</button>
     <button class="btn" id="hsheet" style="background:#6a1b9a;display:none">📊 Apri statistiche</button>
+    <button class="btn" id="hxls" style="background:#0f7b3f">📤 Excel su OneDrive</button>
   </footer>
 </div>
 <div id="msg"></div>
@@ -203,6 +204,49 @@ function sendAll(manual){if(!DB.cfg||!DB.cfg.url){if(manual)toast('Invio non anc
    .catch(function(){sending=false;if(manual)toast('Invio non riuscito, riprovo più tardi')})}
 window.addEventListener('online',function(){setTimeout(function(){sendAll(false)},1500)});
 setInterval(function(){sendAll(false)},120000);
+
+// ---------- Excel (.xlsx) generato sul tablet, senza librerie ----------
+var CRC=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){var c=0xFFFFFFFF;for(var i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zip(files){var enc=new TextEncoder(),parts=[],cen=[],off=0;
+  function h16(v){return [v&255,(v>>8)&255]}function h32(v){return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]}
+  files.forEach(function(f){var name=enc.encode(f[0]),data=enc.encode(f[1]),crc=crc32(data);
+    var lh=[].concat([0x50,0x4b,3,4],h16(20),h16(0x0800),h16(0),h16(0),h16(0),h32(crc),h32(data.length),h32(data.length),h16(name.length),h16(0));
+    parts.push(new Uint8Array(lh),name,data);
+    cen.push([].concat([0x50,0x4b,1,2],h16(20),h16(20),h16(0x0800),h16(0),h16(0),h16(0),h32(crc),h32(data.length),h32(data.length),h16(name.length),h16(0),h16(0),h16(0),h16(0),h32(0),h32(off)),name);
+    off+=lh.length+name.length+data.length});
+  var cs=0;cen.forEach(function(c){cs+=c.length});var cd=[];cen.forEach(function(c){cd.push(c instanceof Uint8Array?c:new Uint8Array(c))});
+  var end=[].concat([0x50,0x4b,5,6],h16(0),h16(0),h16(files.length),h16(files.length),h32(cs),h32(off),h16(0));
+  return new Blob(parts.concat(cd,[new Uint8Array(end)]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+function xe(v){return String(v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function sheetXml(rows,widths){var x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+  if(widths)x+='<cols>'+widths.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>'}).join('')+'</cols>';
+  x+='<sheetData>'+rows.map(function(r,ri){return '<row r="'+(ri+1)+'">'+r.map(function(v){var st=ri==0?' s="1"':'';
+    if(typeof v=='number')return '<c'+st+'><v>'+v+'</v></c>';return '<c t="inlineStr"'+st+'><is><t xml:space="preserve">'+xe(v==null?'':v)+'</t></is></c>'}).join('')+'</row>'}).join('')+'</sheetData></worksheet>';return x}
+function xlsx(sheets){var f=[],wb='',rel='',ct='';
+  sheets.forEach(function(s,i){var n=i+1;f.push(['xl/worksheets/sheet'+n+'.xml',sheetXml(s.rows,s.w)]);
+    wb+='<sheet name="'+xe(s.name)+'" sheetId="'+n+'" r:id="rId'+n+'"/>';rel+='<Relationship Id="rId'+n+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+n+'.xml"/>';
+    ct+='<Override PartName="/xl/worksheets/sheet'+n+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'});
+  var k=sheets.length+1;rel+='<Relationship Id="rId'+k+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+  f.unshift(['[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+ct+'</Types>'],
+    ['_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+wb+'</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rel+'</Relationships>'],
+    ['xl/styles.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0B3D91"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" fillId="2" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>']);
+  return zip(f)}
+function seasonWorkbook(){var ms=DB.matches.filter(function(m){return m.log.length}).sort(function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)});
+  var P=[['ID partita','Giornata','Data','Ora','Casa/Trasferta','Avversario','Piscina','Gol Azzurra','Gol avversari','Risultato','Parziali','Gol Azzurra in sup.','Gol avv. in sup.','Espulsioni Azzurra','Espulsioni avv.','Stato','Aggiornata il']],
+      G=[['ID partita','Data','Avversario','Calotta','Giocatore','Gol','di cui in sup.','Assist','di cui in sup.','Espulsioni']],
+      E=[['ID partita','Data','Avversario','Tempo','Ora','Evento','Calotta','Giocatore']],T={},order=[];
+  ms.forEach(function(m){var r=rowsOf(m);P=P.concat(r.Partite);G=G.concat(r.Giocatori);E=E.concat(r.Eventi);
+    r.Giocatori.forEach(function(g){var n=g[4];if(!T[n]){T[n]=[n,0,0,0,0,0,0];order.push(n)}var t=T[n];t[1]++;t[2]+=g[5];t[3]+=g[6];t[4]+=g[7];t[5]+=g[8];t[6]+=g[9]})});
+  var TT=[['Giocatore','Partite','Gol','Gol in sup.','Assist','Assist in sup.','Espulsioni']].concat(order.map(function(n){return T[n]}).sort(function(a,b){return b[2]-a[2]||b[4]-a[4]}));
+  return xlsx([{name:'Totali stagione',rows:TT,w:[22,9,7,11,8,13,11]},{name:'Partite',rows:P,w:[16,12,11,7,13,22,26,11,12,28,22,14,13,15,13,10,18]},
+    {name:'Giocatori',rows:G,w:[16,11,20,8,20,6,12,7,12,10]},{name:'Eventi',rows:E,w:[16,11,20,7,9,12,8,20]}])}
+function exportExcel(){var blob=seasonWorkbook(),name='Azzurra U16 - Statistiche '+new Date().toISOString().slice(0,10)+'.xlsx';
+  try{var file=new File([blob],name,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:name}).catch(function(){});return}}catch(e){}
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500);toast('Excel salvato in Download')}
 
 var S=null; // partita aperta
 function save(){if(!S)return;S.upd=Date.now();persist()}
@@ -309,6 +353,7 @@ function openMatch(id){S=byId(id);if(!S)return;lastRow=null;[].forEach.call(docu
   if(!S.done&&!S.log.length)toast((S.gio?S.gio+': ':'')+title(S)+' – pronta a registrare')}
 function showHome(){S=null;document.getElementById('ov').style.display='none';renderHome();home.style.display='flex';sendAll(false)}
 document.getElementById('home2').addEventListener('click',showHome);
+document.getElementById('hxls').addEventListener('click',function(){if(!DB.matches.some(function(m){return m.log.length})){toast('Nessuna statistica ancora registrata');return}exportExcel()});
 document.getElementById('hsheet').addEventListener('click',function(){if(DB.cfg&&DB.cfg.view)window.open(DB.cfg.view,'_blank')});
 document.getElementById('rob').addEventListener('click',function(){if(!confirm('Riaprire la partita conclusa per modificarla?'))return;S.done=false;save();document.body.classList.remove('ro');document.getElementById('last').textContent='Partita riaperta'});
 document.getElementById('hnew').addEventListener('click',function(){var opp=prompt('Avversario:');if(opp===null)return;
