@@ -85,7 +85,7 @@ body{display:flex;flex-direction:column;touch-action:manipulation}
 .card .st{font-size:15px;font-weight:700;padding:8px 12px;border-radius:8px;background:#eceff1;color:#455a64;text-align:center;min-width:130px}
 .card.run .st{background:#fff3c4;color:#6d4c00}.card.done .st{background:#e3f4e4;color:#1b5e20}
 .card .st b{display:block;font-size:22px}
-.card .del{border:0;background:none;font-size:22px;padding:8px;opacity:.5}
+.card .del{border:0;background:none;font-size:24px;padding:8px 10px;opacity:.6}
 #home footer{padding:10px 18px 16px;display:flex;gap:10px;flex-wrap:wrap}
 #home footer .btn{font-size:18px;padding:12px 18px}
 #empty{text-align:center;color:#607d8b;font-size:18px;padding:40px 10px;line-height:1.5}
@@ -377,8 +377,9 @@ function renderHome(){document.getElementById('hnew').style.display=DB.gh||!DB.m
   if(!ms.length){listEl.innerHTML='<div id="empty">Nessuna partita.<br>Apri il link della distinta oppure tocca "+ Nuova partita".</div>';return}
   listEl.innerHTML=ms.map(function(m){var cls=m.done?'done':(m.log.length?'run':''),st=m.done?'Conclusa<b>'+res(m)+'</b>':(m.log.length?'In corso · '+m.per+'T<b>'+res(m)+'</b>':'Da giocare');
     return '<div class="card '+cls+'" data-id="'+esc(m.id)+'"><div class="when"><b>'+esc(m.gio||'Partita')+'</b>'+esc(fdate(m))+(m.time?' · '+esc(m.time):'')+'</div>'+
-      '<div class="match">'+esc(title(m))+'<small>'+esc(m.place||'')+(m.log.length&&DB.gh&&!m.remote?(pending(m)?' · ☁ da pubblicare':' · ☁ pubblicata ✓'):'')+'</small></div><div class="st">'+st+'</div><button class="del" data-del="'+esc(m.id)+'">🗑</button></div>'}).join('')}
-listEl.addEventListener('click',function(e){var del=e.target.closest('[data-del]');
+      '<div class="match">'+esc(title(m))+'<small>'+esc(m.place||'')+(m.log.length&&DB.gh&&!m.remote?(pending(m)?' · ☁ da pubblicare':' · ☁ pubblicata ✓'):'')+'</small></div><div class="st">'+st+'</div>'+(m.log.length&&(DB.gh||!m.remote)?'<button class="del" data-rst="'+esc(m.id)+'" title="Azzera">↺</button>':'')+'<button class="del" data-del="'+esc(m.id)+'">🗑</button></div>'}).join('')}
+listEl.addEventListener('click',function(e){var rs=e.target.closest('[data-rst]');if(rs){if(resetMatch(byId(rs.dataset.rst)))renderHome();return}
+  var del=e.target.closest('[data-del]');
   if(del){var m=byId(del.dataset.del);if(!confirm('Eliminare la partita "'+title(m)+'"?'+(m.log.length?' Prima ne scarico una copia.':'')))return;
     if(m.log.length)backup('eliminata',m);DB.matches=DB.matches.filter(function(x){return x!==m});DB.encv='';persist();renderHome();return}
   var c=e.target.closest('.card');if(c)openMatch(c.dataset.id)});
@@ -479,9 +480,11 @@ document.getElementById('copy').addEventListener('click',function(){
   try{navigator.clipboard.writeText(txt.value).then(function(){toast('Copiato')},fb2)}catch(e){fb2()}});
 document.getElementById('csv').addEventListener('click',function(){dl(fname()+'.csv',csv(),'text/csv')});
 document.getElementById('send').addEventListener('click',function(){publish(true)});
-document.getElementById('rst').addEventListener('click',function(){if(!confirm('Azzerare tutti i dati di questa partita (gol, assist, espulsioni, tempi)? I nomi restano. Prima scarico una copia.'))return;
-  if(S.log.length)backup('prima_di_azzerare');F.concat(['x']).forEach(function(f){S[f]=z()});S.og=0;S.ogu=0;S.log=[];S.per=1;S.done=false;save();
-  document.body.classList.remove('ro');all();ov.style.display='none';document.getElementById('last').textContent='Partita azzerata';publish(false)});
+function resetMatch(m){
+  if(!confirm('AZZERARE la partita "'+title(m)+'"?\n\nVerranno cancellati gol, assist, espulsioni e tempi. I nomi restano.'))return false;
+  if(!confirm('Conferma di nuovo: l\'azzeramento non si può annullare.\n(Prima scarico comunque una copia di sicurezza in Download.)'))return false;
+  if(m.log.length)backup('prima_di_azzerare',m);F.concat(['x']).forEach(function(f){m[f]=z()});m.og=0;m.ogu=0;m.log=[];m.per=1;m.done=false;m.upd=Date.now();persist();publish(false);toast('Partita azzerata');return true}
+document.getElementById('rst').addEventListener('click',function(){if(!resetMatch(S))return;document.body.classList.remove('ro');all();ov.style.display='none';document.getElementById('last').textContent='Partita azzerata'});
 document.getElementById('end').addEventListener('click',function(){if(!confirm('Terminare la partita? Resterà consultabile in sola lettura.'))return;
   S.done=true;save();backup('finale');showHome()});
 
